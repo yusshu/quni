@@ -3,8 +3,20 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Q'uñi | Calculadora de propiedades del agua",
+  applicationName: "Q'uñi",
   description:
     "Calcula estados termodinámicos del agua a partir de dos propiedades intensivas.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Q'uñi",
+  },
+  icons: {
+    icon: [{ url: "/icon.png", type: "image/png", sizes: "1024x1024" }],
+    apple: [{ url: "/apple-touch-icon.png", type: "image/png", sizes: "180x180" }],
+    other: [{ rel: "apple-touch-icon-precomposed", url: "/apple-touch-icon-precomposed.png" }],
+  },
 };
 
 export const viewport: Viewport = {
