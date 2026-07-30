@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, BadgeCheck, Calculator, Gauge, Moon, ShieldCheck, Sun, Waves } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import { AlertTriangle, ArrowLeft, Calculator, Check, ChevronDown, Moon, Sun, Waves, X } from "lucide-react";
 import { calculateState, formatValue, phaseColors, phaseLabels, propertyLabels, propertyUnits, type PhaseKey, type PropertyKey, type State, type TraceStep } from "../lib/steam";
+import iconForLightBackground from "../assets/icon-dark.png";
+import iconForDarkBackground from "../assets/icon-light.png";
 import ThermodynamicChart from "./ThermodynamicChart";
 
 const propertyOrder: PropertyKey[] = ["P", "T", "v", "u", "h", "s", "x"];
@@ -10,6 +13,7 @@ const thirdPropertyOrder: PropertyKey[] = ["x", "v", "u", "h", "s"];
 const defaults = { firstKey: "P" as PropertyKey, firstValue: "101.325", secondKey: "x" as PropertyKey, secondValue: "0.85" };
 const phaseClass: Record<PhaseKey, string> = { compressedLiquid: "compressedLiquid", saturatedLiquid: "saturatedLiquid", mixture: "mixture", saturatedVapor: "saturatedVapor", superheatedVapor: "superheatedVapor", supercritical: "supercritical", undetermined: "undetermined" };
 const themeStorageKey = "quni-theme";
+const introTipStorageKey = "quni-intro-tip-dismissed";
 
 export default function Home() {
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -24,17 +28,21 @@ export default function Home() {
   const [needsThirdProperty, setNeedsThirdProperty] = useState(false);
   const [thirdPropertyError, setThirdPropertyError] = useState<string | null>(null);
   const [calculatedKeys, setCalculatedKeys] = useState<PropertyKey[]>([]);
+  const [showIntroTip, setShowIntroTip] = useState(false);
 
   useEffect(() => {
+    let shouldShowIntroTip = true;
     try {
       const savedTheme = window.localStorage.getItem(themeStorageKey);
       if (savedTheme === "light" || savedTheme === "dark") {
         setTheme(savedTheme);
         document.documentElement.dataset.theme = savedTheme;
       }
+      shouldShowIntroTip = window.localStorage.getItem(introTipStorageKey) !== "true";
     } catch {
-      // El almacenamiento puede no estar disponible; el tema sigue funcionando durante la sesión.
+      // El almacenamiento puede no estar disponible; las preferencias siguen funcionando durante la sesión.
     }
+    setShowIntroTip(shouldShowIntroTip);
   }, []);
 
   function toggleTheme() {
@@ -48,6 +56,15 @@ export default function Home() {
       }
       return nextTheme;
     });
+  }
+
+  function dismissIntroTip() {
+    setShowIntroTip(false);
+    try {
+      window.localStorage.setItem(introTipStorageKey, "true");
+    } catch {
+      // El consejo permanece oculto durante la sesión aunque no se pueda persistir.
+    }
   }
 
   function resetThirdPropertyRequest() {
@@ -94,18 +111,29 @@ export default function Home() {
       <div className={`app-slider ${showResults ? "show-results" : ""}`}>
         <section className="screen screen-input" aria-hidden={showResults}>
           <div className="shell">
-            <section className="hero">
-              <div className="brand-row">
-                <div className="brand"><div className="logo">Q</div><div><p className="eyebrow">Calculadora de agua</p><h1>Q&apos;uñi</h1></div></div>
-                <button className="theme-toggle icon-only" type="button" onClick={toggleTheme} aria-label="Cambiar tema">
-                  {theme === "light" ? <Moon size={19} /> : <Sun size={19} />}
-                </button>
+            <header className="app-header">
+              <div className="brand">
+                <div className="logo" aria-hidden="true">
+                  <Image className="brand-icon brand-icon-on-light" src={iconForLightBackground} alt="" priority sizes="40px" />
+                  <Image className="brand-icon brand-icon-on-dark" src={iconForDarkBackground} alt="" priority sizes="40px" />
+                </div>
+                <h1>Q&apos;uñi</h1>
               </div>
-              <p className="lead">Ingresa dos propiedades intensivas. Si P y T ubican el estado dentro de la campana de saturación, Q&apos;uñi te pedirá una tercera propiedad para definir la calidad.</p>
-            </section>
+              <button className="theme-toggle icon-only" type="button" onClick={toggleTheme} aria-label="Cambiar tema">
+                {theme === "light" ? <Moon size={19} /> : <Sun size={19} />}
+              </button>
+            </header>
 
-            <section className="card"><div className="card-body">
-              <div className="section-title"><h2>Propiedades de entrada</h2><Calculator color="var(--primary)" size={20} /></div>
+            {showIntroTip && <aside className="intro-tip" aria-labelledby="intro-tip-title" role="note">
+              <div className="intro-tip-copy">
+                <h2 className="intro-tip-title" id="intro-tip-title">De dos datos a un estado completo.</h2>
+                <p>Ingresa <strong>dos propiedades intensivas</strong>. Si el par <span className="property-pair">P + T</span> cae en saturación, te pediremos una tercera para definir la calidad.</p>
+              </div>
+              <button className="intro-tip-dismiss" type="button" onClick={dismissIntroTip} aria-label="Ocultar este consejo permanentemente"><X size={16} /></button>
+            </aside>}
+
+            <section className="card input-card"><div className="card-body">
+              <div className="section-title"><h2>Propiedades de entrada</h2><span className="section-icon"><Calculator size={20} /></span></div>
               <div className="input-grid">
                 <PropertyInput label="Propiedad 1" selected={firstKey} value={firstValue} onKeyChange={(key) => { setFirstKey(key); resetThirdPropertyRequest(); }} onValueChange={(value) => { setFirstValue(value); resetThirdPropertyRequest(); }} />
                 <PropertyInput label="Propiedad 2" selected={secondKey} value={secondValue} onKeyChange={(key) => { setSecondKey(key); resetThirdPropertyRequest(); }} onValueChange={(value) => { setSecondValue(value); resetThirdPropertyRequest(); }} />
@@ -119,11 +147,7 @@ export default function Home() {
               <button className="primary-button full-width" type="button" onClick={handleCalculate}><Calculator size={17} /> {needsThirdProperty ? "Calcular con tercera propiedad" : "Calcular estado"}</button>
             </div></section>
 
-            <section className="proof-footer" aria-label="Capacidades">
-              <div className="proof-item"><ShieldCheck size={18} /><span>Industry-ready</span></div>
-              <div className="proof-item"><BadgeCheck size={18} /><span>IAPWS-IF97 proven</span></div>
-              <div className="proof-item"><Gauge size={18} /><span>Precision up to 10 decimals</span></div>
-            </section>
+            <AppFooter />
           </div>
         </section>
 
@@ -135,6 +159,7 @@ export default function Home() {
               <div className="topbar-icon" aria-hidden="true"><Waves size={22} /></div>
             </div>
             {state ? <ResultsContent state={state} inputKeys={calculatedKeys} /> : <EmptyResult />}
+            <AppFooter />
           </div>
         </section>
       </div>
@@ -158,17 +183,56 @@ function EmptyResult() {
   return <div className="notice warning"><AlertTriangle size={18} /><span>Calcula un estado para ver resultados.</span></div>;
 }
 
+function AppFooter() {
+  return <footer className="app-footer">
+    <span>Q&apos;uñi</span>
+    <span className="footer-separator" aria-hidden="true">·</span>
+    <span>Licenciado bajo AGPL-3.0</span>
+  </footer>;
+}
+
+function PropertySelect({ label, selected, options, onChange }: { label: string; selected: PropertyKey; options: PropertyKey[]; onChange: (key: PropertyKey) => void }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function closeWhenClickingOutside(event: PointerEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+    document.addEventListener("pointerdown", closeWhenClickingOutside);
+    return () => document.removeEventListener("pointerdown", closeWhenClickingOutside);
+  }, [open]);
+
+  return <div className="property-select" ref={containerRef} onKeyDown={(event) => { if (event.key === "Escape") setOpen(false); }}>
+    <button className="property-select-trigger" type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} aria-haspopup="listbox" aria-label={label + ": seleccionar propiedad"}>
+      <span className="property-symbol">{selected}</span>
+      <span className="property-select-copy"><strong>{propertyLabels[selected]}</strong><small>{propertyUnits[selected]}</small></span>
+      <ChevronDown className={open ? "select-chevron open" : "select-chevron"} size={20} />
+    </button>
+    <div className={open ? "property-options open" : "property-options"} role="listbox" aria-label={label} aria-hidden={!open} inert={!open}>
+      {options.map((key) => <button className="property-option" type="button" role="option" aria-selected={selected === key} tabIndex={open ? 0 : -1} key={key} onClick={() => { onChange(key); setOpen(false); }}>
+        <span className="property-symbol">{key}</span>
+        <span className="property-select-copy"><strong>{propertyLabels[key]}</strong><small>{propertyUnits[key]}</small></span>
+        {selected === key && <Check className="property-check" size={18} />}
+      </button>)}
+    </div>
+  </div>;
+}
+
 function PropertyInput({ label, selected, value, onKeyChange, onValueChange }: { label: string; selected: PropertyKey; value: string; onKeyChange: (key: PropertyKey) => void; onValueChange: (value: string) => void }) {
-  return <div className="field"><label>{label}</label><select className="control" value={selected} onChange={(event) => onKeyChange(event.target.value as PropertyKey)}>{propertyOrder.map((key) => <option key={key} value={key}>{propertyLabels[key]} ({key}) · {propertyUnits[key]}</option>)}</select><input className="control" inputMode="decimal" type="number" step="any" value={value} onChange={(event) => onValueChange(event.target.value)} placeholder={`Valor en ${propertyUnits[selected]}`} aria-label={`${label}: ${propertyLabels[selected]}`} /></div>;
+  return <div className="field">
+    <label>{label}</label>
+    <PropertySelect label={label} selected={selected} options={propertyOrder} onChange={onKeyChange} />
+    <input className="control property-value-input" inputMode="decimal" type="number" step="any" value={value} onChange={(event) => onValueChange(event.target.value)} placeholder={"Valor en " + propertyUnits[selected]} aria-label={label + ": valor de " + propertyLabels[selected]} />
+  </div>;
 }
 
 function AdditionalPropertyInput({ selected, value, onKeyChange, onValueChange }: { selected: PropertyKey; value: string; onKeyChange: (key: PropertyKey) => void; onValueChange: (value: string) => void }) {
   return <div className="field">
-    <label htmlFor="third-property-key">Propiedad 3 para definir la calidad</label>
-    <select id="third-property-key" className="control" value={selected} onChange={(event) => onKeyChange(event.target.value as PropertyKey)}>
-      {thirdPropertyOrder.map((key) => <option key={key} value={key}>{propertyLabels[key]} ({key}) · {propertyUnits[key]}</option>)}
-    </select>
-    <input className="control" inputMode="decimal" type="number" step="any" value={value} onChange={(event) => onValueChange(event.target.value)} placeholder={"Valor en " + propertyUnits[selected]} aria-label={"Propiedad 3: " + propertyLabels[selected]} />
+    <label>Propiedad 3 para definir la calidad</label>
+    <PropertySelect label="Propiedad 3" selected={selected} options={thirdPropertyOrder} onChange={onKeyChange} />
+    <input className="control property-value-input" inputMode="decimal" type="number" step="any" value={value} onChange={(event) => onValueChange(event.target.value)} placeholder={"Valor en " + propertyUnits[selected]} aria-label={"Propiedad 3: valor de " + propertyLabels[selected]} />
   </div>;
 }
 
