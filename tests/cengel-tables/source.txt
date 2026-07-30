@@ -1,0 +1,5 @@
+The water tables were taken from the book 'Thermodynamics: An Engineering Approach"
+by Yunus A. Çengel, Michael A. Boles and Mehmet Kanoğlu, ninth edition, and converted
+to CSV format by Andre Roldan.
+
+These tables are only used to test our results against existing literature.

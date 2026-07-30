@@ -1,0 +1,46 @@
+{
+  "name": "quni",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Thermodynamic properties calculator for water",
+  "license": "AGPL-3.0-only",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "package:ios": "node scripts/package-native.mjs ios",
+    "package:android": "node scripts/package-native.mjs android",
+    "package": "npm run build && npm run package:ios -- --skip-build && npm run package:android -- --skip-build",
+    "test:if97": "tsx tests/if97.test.ts",
+    "test:cengel": "tsx tests/cengel.test.ts",
+    "test": "npm run test:if97 && npm run test:cengel"
+  },
+  "author": {
+    "name": "Andre Roldan",
+    "url": "https://github.com/yusshu",
+    "email": "andre@unnamed.team"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yusshu/quni.git"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
+    "decimal.js": "^10.6.0",
+    "lucide-react": "^1.27.0",
+    "next": "^16.2.12",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "tsx": "^4.23.1",
+    "typescript": "^6.0.3"
+  }
+}
