@@ -3,6 +3,7 @@
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useId, useMemo, useState, type CSSProperties, type PointerEvent, type WheelEvent } from "react";
 import { formatValue, satTable, type State } from "../lib/steam";
+import { fromCanonical, unitFor, type UnitPreferences } from "../lib/units";
 
 type DiagramKey = "Tv" | "Ph" | "Ts" | "Pv";
 type ScaleKind = "linear" | "log";
@@ -112,14 +113,19 @@ function pointLabel(label: string, definition: DiagramDefinition, x: number, y: 
   return `${label}. ${definition.x.label}: ${formatValue(x)} ${definition.x.unit}. ${definition.y.label}: ${formatValue(y)} ${definition.y.unit}.`;
 }
 
-export default function ThermodynamicChart({ state }: { state: State }) {
+export default function ThermodynamicChart({ state, units }: { state: State; units: UnitPreferences }) {
   const [diagramKey, setDiagramKey] = useState<DiagramKey>("Tv");
   const [zoomLevel, setZoomLevel] = useState(0);
   const [tooltip, setTooltip] = useState<PlotPoint | null>(null);
   const clipId = `plot-${useId().replace(/:/g, "")}`;
-  const definition = diagrams[diagramKey];
-  const stateX = state[definition.x.key];
-  const stateY = state[definition.y.key];
+  const baseDefinition = diagrams[diagramKey];
+  const definition: DiagramDefinition = {
+    ...baseDefinition,
+    x: { ...baseDefinition.x, unit: unitFor(baseDefinition.x.key, units) },
+    y: { ...baseDefinition.y, unit: unitFor(baseDefinition.y.key, units) },
+  };
+  const stateX = fromCanonical(definition.x.key, state[definition.x.key], units);
+  const stateY = fromCanonical(definition.y.key, state[definition.y.key], units);
 
   useEffect(() => {
     setZoomLevel(0);
@@ -127,8 +133,8 @@ export default function ThermodynamicChart({ state }: { state: State }) {
   }, [diagramKey, state.P, state.T, state.v, state.h, state.s]);
 
   const chart = useMemo(() => {
-    const liquidValues = satTable.map((point) => ({ x: saturationValue(point, definition.x.key, "liquid"), y: saturationValue(point, definition.y.key, "liquid") }));
-    const vaporValues = satTable.map((point) => ({ x: saturationValue(point, definition.x.key, "vapor"), y: saturationValue(point, definition.y.key, "vapor") }));
+    const liquidValues = satTable.map((point) => ({ x: fromCanonical(definition.x.key, saturationValue(point, definition.x.key, "liquid"), units), y: fromCanonical(definition.y.key, saturationValue(point, definition.y.key, "liquid"), units) }));
+    const vaporValues = satTable.map((point) => ({ x: fromCanonical(definition.x.key, saturationValue(point, definition.x.key, "vapor"), units), y: fromCanonical(definition.y.key, saturationValue(point, definition.y.key, "vapor"), units) }));
     const allX = [...liquidValues.map((point) => point.x), ...vaporValues.map((point) => point.x), stateX];
     const allY = [...liquidValues.map((point) => point.y), ...vaporValues.map((point) => point.y), stateY];
     const xDomain = zoomDomain(paddedDomain(allX, definition.x.scale), stateX, zoomLevel, definition.x.scale);
@@ -149,7 +155,7 @@ export default function ThermodynamicChart({ state }: { state: State }) {
       ...(current ? [current] : []),
     ].filter((point) => point.chartX >= pad.left && point.chartX <= width - pad.right && point.chartY >= pad.top && point.chartY <= height - pad.bottom);
     return { xDomain, yDomain, liquid, vapor, current, hoverPoints, xTicks: axisTicks(xDomain, definition.x.scale), yTicks: axisTicks(yDomain, definition.y.scale) };
-  }, [definition, stateX, stateY, zoomLevel]);
+  }, [diagramKey, stateX, stateY, units, zoomLevel]);
 
   const liquidPoints = chart.liquid.map((point) => `${point.chartX},${point.chartY}`).join(" ");
   const vaporPoints = chart.vapor.map((point) => `${point.chartX},${point.chartY}`).join(" ");

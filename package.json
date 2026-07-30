@@ -16,7 +16,8 @@
     "docs:clean": "powershell -NoProfile -ExecutionPolicy Bypass -File docs/build.ps1 -Clean",
     "test:if97": "tsx tests/if97.test.ts",
     "test:cengel": "tsx tests/cengel.test.ts",
-    "test": "npm run test:if97 && npm run test:cengel"
+    "test:units": "tsx tests/units.test.ts",
+    "test": "npm run test:units && npm run test:if97 && npm run test:cengel"
   },
   "author": {
     "name": "Andre Roldan",
