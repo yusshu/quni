@@ -116,9 +116,32 @@ assertClose("T-x quality", saturatedFromTemperature.x ?? NaN, 1, 1e-12, 1e-12);
 
 const ambiguousSaturation = calculateState(input("P", 101.325), input("T", 100));
 assertEqual("P-T saturation requires extra property", ambiguousSaturation.phase, "undetermined");
+assertEqual("P-T saturation third-property flag", ambiguousSaturation.requiresThirdProperty, true);
+assertClose("P-T reports Tsat(P)", ambiguousSaturation.saturation?.temperatureAtPressure ?? NaN, saturationTemperatureK(0.101325) - 273.15, 0, 1e-10);
+assertClose("P-T reports Psat(T)", ambiguousSaturation.saturation?.pressureAtTemperature ?? NaN, saturationPressureMPa(373.15) * 1000, 0, 1e-8);
 if (!ambiguousSaturation.warnings.some((warning) => warning.includes("línea de saturación"))) {
   throw new Error("P-T saturation should explain that another property is required");
 }
+
+const saturationResolvedWithQuality = calculateState(input("P", 101.325), input("T", 100), input("x", 0.4));
+assertEqual("P-T-x region", saturationResolvedWithQuality.region, "4");
+assertEqual("P-T-x phase", saturationResolvedWithQuality.phase, "mixture");
+assertEqual("P-T-x no longer requires property", saturationResolvedWithQuality.requiresThirdProperty, false);
+assertClose("P-T-x quality", saturationResolvedWithQuality.x ?? NaN, 0.4, 0, 1e-12);
+assertClose("P-T-x uses Tsat(P)", saturationResolvedWithQuality.T, saturationTemperatureK(0.101325) - 273.15, 0, 1e-10);
+assertClose("P-T-x preserves Psat(T)", saturationResolvedWithQuality.saturation?.pressureAtTemperature ?? NaN, saturationPressureMPa(373.15) * 1000, 0, 1e-8);
+
+const saturationResolvedWithEnthalpy = calculateState(input("P", 101.325), input("T", 100), input("h", saturatedFromPressure.h));
+assertEqual("P-T-h region", saturationResolvedWithEnthalpy.region, "4");
+assertClose("P-T-h quality", saturationResolvedWithEnthalpy.x ?? NaN, 0.25, 0, 1e-10);
+
+const highTemperatureSatK = 625;
+const highTemperatureSatP = saturationPressureMPa(highTemperatureSatK) * 1000;
+const highTemperatureAmbiguous = calculateState(input("P", highTemperatureSatP), input("T", highTemperatureSatK - 273.15));
+assertEqual("high-temperature P-T saturation requires extra property", highTemperatureAmbiguous.requiresThirdProperty, true);
+const highTemperatureResolved = calculateState(input("P", highTemperatureSatP), input("T", highTemperatureSatK - 273.15), input("x", 0.5));
+assertEqual("high-temperature P-T-x region", highTemperatureResolved.region, "4");
+assertClose("high-temperature P-T-x quality", highTemperatureResolved.x ?? NaN, 0.5, 0, 1e-12);
 
 const duplicate = calculateState(input("P", 100), input("P", 200));
 assertEqual("duplicate properties invalid", duplicate.phase, "undetermined");

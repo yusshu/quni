@@ -126,6 +126,38 @@ h3 { font-size: 0.92rem; }
 .notice strong { grid-column: 1 / -1; }
 .notice.warning { border: 1px solid color-mix(in srgb, var(--warning) 36%, transparent); background: color-mix(in srgb, var(--warning) 13%, transparent); color: var(--warning); }
 .notice.error { border: 1px solid color-mix(in srgb, var(--danger) 36%, transparent); background: color-mix(in srgb, var(--danger) 13%, transparent); color: var(--danger); }
+.additional-property {
+  display: grid;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--mixture) 38%, var(--border));
+  border-radius: 19px;
+  background: color-mix(in srgb, var(--mixture) 8%, var(--surface));
+}
+.saturation-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--mixture) 36%, var(--border));
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--mixture) 10%, var(--surface));
+}
+.saturation-card.compact {
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+}
+.saturation-values { display: grid; gap: 8px; }
+.saturation-values > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 9px 10px;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+.saturation-values span { color: var(--text-muted); font-size: 0.78rem; line-height: 1.35; }
+.saturation-values strong { color: var(--mixture); font-size: 0.88rem; text-align: right; }
 .state-card { display: grid; gap: 12px; padding: 14px; border-radius: 20px; background: var(--surface-muted); }
 .state-value { font-size: 1.75rem; font-weight: 900; letter-spacing: -0.05em; }
 .quality { color: var(--success); font-weight: 900; }

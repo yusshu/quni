@@ -10,6 +10,11 @@ export type TraceStep = {
   details?: Array<{ label: string; value: string }>;
 };
 
+export type SaturationData = {
+  pressureAtTemperature: number;
+  temperatureAtPressure: number;
+};
+
 export type State = {
   phase: PhaseKey;
   P: number;
@@ -22,9 +27,11 @@ export type State = {
   warnings: string[];
   trace: TraceStep[];
   region?: "1" | "2" | "3" | "4" | "5";
+  saturation: SaturationData | null;
+  requiresThirdProperty: boolean;
 };
 
-type BaseState = Omit<State, "warnings" | "trace" | "x" | "phase"> & { phase?: PhaseKey; x?: number | null };
+type BaseState = Omit<State, "warnings" | "trace" | "x" | "phase" | "saturation" | "requiresThirdProperty"> & { phase?: PhaseKey; x?: number | null };
 type SatPoint = { T: number; P: number; vf: number; vg: number; uf: number; ug: number; hf: number; hg: number; sf: number; sg: number };
 
 export const critical = { T: 373.946, P: 22064 };
@@ -255,7 +262,7 @@ export function saturationTemperatureK(P_MPa: number) {
 
 function p23MPa(T_K: number) { return 348.05185628969 - 1.1671859879975 * T_K + 0.0010192970039326 * T_K * T_K; }
 
-function baseFromPT(P_MPa: number, T_K: number): { state?: BaseState; steps: TraceStep[]; warning?: string } {
+function baseFromPT(P_MPa: number, T_K: number): { state?: BaseState; steps: TraceStep[]; warning?: string; requiresThirdProperty?: boolean } {
   const steps = [trace("Normalizar entradas", "Se convierten las entradas de la app a unidades IF97.", [{ label: "P", value: `${P_MPa} MPa` }, { label: "T", value: `${T_K} K` }])];
   if (T_K < 273.15 || P_MPa <= 0) return { steps, warning: "IF97 no cubre temperaturas menores que 273.15 K ni presiones no positivas." };
   if (T_K > 2273.15 || P_MPa > 100) return { steps, warning: "Estado fuera del rango general IF97." };
@@ -267,13 +274,18 @@ function baseFromPT(P_MPa: number, T_K: number): { state?: BaseState; steps: Tra
   if (T_K <= 623.15) {
     const psat = saturationPressureMPa(T_K);
     steps.push(trace("Comprobar saturación", "Se calcula Psat(T) con la ecuación de Región 4.", [{ label: "Psat", value: `${formatValue(mPaToKPa(psat))} kPa` }]));
-    if (Math.abs(P_MPa - psat) <= Math.max(1e-5, psat * 1.5e-3)) return { steps, warning: "P y T ubican el estado sobre la línea de saturación. Ingresa calidad, v, u, h o s para determinarlo." };
+    if (Math.abs(P_MPa - psat) <= Math.max(1e-5, psat * 1.5e-3)) return { steps, warning: "P y T ubican el estado sobre la línea de saturación. Ingresa calidad, v, u, h o s para determinarlo.", requiresThirdProperty: true };
     if (P_MPa > psat) {
       steps.push(trace("Seleccionar Región 1", "P > Psat(T), por lo tanto el estado es líquido comprimido/subenfriado.", undefined, "success"));
       return { state: region1(P_MPa, T_K), steps };
     }
     steps.push(trace("Seleccionar Región 2", "P < Psat(T), por lo tanto el estado es vapor sobrecalentado.", undefined, "success"));
     return { state: region2(P_MPa, T_K), steps };
+  }
+  if (T_K < T_CRIT_K) {
+    const psat = saturationPressureMPa(T_K);
+    steps.push(trace("Comprobar saturación", "Se calcula Psat(T) antes de seleccionar entre las Regiones 2 y 3.", [{ label: "Psat", value: formatValue(mPaToKPa(psat)) + " kPa" }]));
+    if (Math.abs(P_MPa - psat) <= Math.max(1e-5, psat * 1.5e-3)) return { steps, warning: "P y T ubican el estado sobre la línea de saturación. Ingresa calidad, v, u, h o s para determinarlo.", requiresThirdProperty: true };
   }
   const boundary = p23MPa(T_K);
   steps.push(trace("Evaluar frontera 2/3", "Para T > 623.15 K se compara P con la frontera p23(T).", [{ label: "p23", value: `${formatValue(mPaToKPa(boundary))} kPa` }]));
@@ -288,10 +300,10 @@ function baseFromPT(P_MPa: number, T_K: number): { state?: BaseState; steps: Tra
 
 function complete(base: BaseState, warnings: string[], steps: TraceStep[]): State {
   const phase = base.phase ?? (base.P > critical.P && base.T > critical.T ? "supercritical" : "undetermined");
-  return { phase, P: base.P, T: base.T, v: base.v, u: base.u, h: base.h, s: base.s, x: base.x ?? null, warnings, trace: steps, region: base.region };
+  return { phase, P: base.P, T: base.T, v: base.v, u: base.u, h: base.h, s: base.s, x: base.x ?? null, warnings, trace: steps, region: base.region, saturation: null, requiresThirdProperty: false };
 }
 
-function invalid(message: string, steps: TraceStep[] = []): State { return { phase: "undetermined", P: NaN, T: NaN, v: NaN, u: NaN, h: NaN, s: NaN, x: null, warnings: [message], trace: [...steps, trace("No determinado", message, undefined, "danger")] }; }
+function invalid(message: string, steps: TraceStep[] = []): State { return { phase: "undetermined", P: NaN, T: NaN, v: NaN, u: NaN, h: NaN, s: NaN, x: null, warnings: [message], trace: [...steps, trace("No determinado", message, undefined, "danger")], saturation: null, requiresThirdProperty: false }; }
 
 function saturatedFromP(P_kPa: number): { sat?: SatPoint; steps: TraceStep[]; warning?: string } {
   const P_MPa = kPaToMPa(P_kPa);
@@ -323,7 +335,21 @@ function mixture(sat: SatPoint, x: number, steps: TraceStep[]): State {
   const detail = (name: string, f: number, g: number, value: number) => ({ label: name, value: `${formatValue(f)} + ${formatValue(q)}(${formatValue(g)} - ${formatValue(f)}) = ${formatValue(value)}` });
   const v = sat.vf + q * (sat.vg - sat.vf), u = sat.uf + q * (sat.ug - sat.uf), h = sat.hf + q * (sat.hg - sat.hf), s = sat.sf + q * (sat.sg - sat.sf);
   steps.push(trace("Aplicar relación de mezcla", "Para una mezcla saturada se usa y = yf + x(y_g - y_f).", [detail("v", sat.vf, sat.vg, v), detail("u", sat.uf, sat.ug, u), detail("h", sat.hf, sat.hg, h), detail("s", sat.sf, sat.sg, s)], "success"));
-  return { phase, P: sat.P, T: sat.T, v, u, h, s, x: q, warnings: [], trace: steps, region: "4" };
+  return {
+    phase,
+    P: sat.P,
+    T: sat.T,
+    v,
+    u,
+    h,
+    s,
+    x: q,
+    warnings: [],
+    trace: steps,
+    region: "4",
+    saturation: { pressureAtTemperature: sat.P, temperatureAtPressure: sat.T },
+    requiresThirdProperty: false,
+  };
 }
 
 function qualityFrom(prop: Exclude<PropertyKey, "P" | "T" | "x">, value: number, sat: SatPoint) {
@@ -365,6 +391,27 @@ function solveOneKnown(knownKey: "P" | "T", knownValue: number, targetKey: Exclu
 export function statePT(P_kPa: number, T_C: number, prefix: TraceStep[] = []): State {
   const result = baseFromPT(kPaToMPa(P_kPa), cToK(T_C));
   const steps = [...prefix, ...result.steps];
+  if (result.requiresThirdProperty) {
+    const saturation = {
+      pressureAtTemperature: mPaToKPa(saturationPressureMPa(cToK(T_C))),
+      temperatureAtPressure: kToC(saturationTemperatureK(kPaToMPa(P_kPa))),
+    };
+    const message = result.warning ?? "Se necesita una tercera propiedad para definir la calidad.";
+    return {
+      phase: "undetermined",
+      P: P_kPa,
+      T: T_C,
+      v: NaN,
+      u: NaN,
+      h: NaN,
+      s: NaN,
+      x: null,
+      warnings: [message],
+      trace: [...steps, trace("Solicitar tercera propiedad", "P y T fijan la condición de saturación, pero no la calidad dentro de la campana.", undefined, "warning")],
+      saturation,
+      requiresThirdProperty: true,
+    };
+  }
   if (result.warning) return invalid(result.warning, steps);
   if (!result.state) return invalid("No fue posible evaluar P,T.", steps);
   return complete(result.state, [], [...steps, trace("Calcular propiedades", "Se derivan v, u, h y s desde la energía libre adimensional de la región seleccionada.", [{ label: "Región", value: result.state.region ?? "—" }], "success")]);
@@ -404,7 +451,49 @@ function solveFromTwoUnknowns(a: { key: PropertyKey; value: number }, b: { key: 
   return invalid("El solver numérico no convergió para esta combinación. Intenta incluir P o T como una de las propiedades.", [...steps, ...iterSteps]);
 }
 
-export function calculateState(first: { key: PropertyKey; value: number }, second: { key: PropertyKey; value: number }): State {
+type StateInput = { key: PropertyKey; value: number };
+
+export function calculateState(first: StateInput, second: StateInput, third?: StateInput): State {
+  if (third) {
+    const entries = [first, second, third];
+    const initial = [trace(
+      "Leer entradas",
+      "Q’uñi recibió tres propiedades intensivas para definir un estado de saturación.",
+      entries.map((entry) => ({ label: entry.key, value: entry.value + " " + propertyUnits[entry.key] })),
+    )];
+    if (new Set(entries.map((entry) => entry.key)).size !== entries.length) return invalid("Selecciona tres propiedades diferentes.", initial);
+    if (entries.some((entry) => !Number.isFinite(entry.value))) return invalid("Ingresa valores numéricos válidos.", initial);
+    if (entries.some((entry) => entry.value < 0)) return invalid("Esta versión no acepta valores negativos en las propiedades de entrada.", initial);
+
+    const P = entries.find((entry) => entry.key === "P")?.value;
+    const T = entries.find((entry) => entry.key === "T")?.value;
+    const discriminator = entries.find((entry) => entry.key !== "P" && entry.key !== "T");
+    if (P === undefined || T === undefined || !discriminator) return invalid("La tercera propiedad solo se requiere cuando P y T ubican el estado en saturación.", initial);
+    if (discriminator.key === "x" && (discriminator.value < 0 || discriminator.value > 1)) return invalid("La calidad debe estar entre 0 y 1.", initial);
+
+    const pt = statePT(P, T, initial);
+    if (!pt.requiresThirdProperty) return invalid("P y T no corresponden a la misma condición de saturación; no se puede aplicar la tercera propiedad.", pt.trace);
+    const saturated = saturatedFromP(P);
+    if (!saturated.sat) return invalid(saturated.warning ?? "No se pudo calcular saturación.", [...pt.trace, ...saturated.steps]);
+    if (discriminator.key === "x") {
+      const resolved = mixture(saturated.sat, discriminator.value, [...pt.trace, ...saturated.steps]);
+      resolved.saturation = pt.saturation;
+      return resolved;
+    }
+
+    const propertyKey = discriminator.key as Exclude<PropertyKey, "P" | "T" | "x">;
+    const quality = qualityFrom(propertyKey, discriminator.value, saturated.sat);
+    const qualityStep = trace(
+      "Calcular calidad",
+      "x = (" + propertyKey + " - " + propertyKey + "f) / (" + propertyKey + "g - " + propertyKey + "f).",
+      [{ label: "x", value: formatValue(quality) }],
+    );
+    if (quality < -EPS || quality > 1 + EPS) return invalid("La tercera propiedad queda fuera de los límites de líquido y vapor saturados para esta P y T.", [...pt.trace, ...saturated.steps, qualityStep]);
+    const resolved = mixture(saturated.sat, quality, [...pt.trace, ...saturated.steps, qualityStep]);
+    resolved.saturation = pt.saturation;
+    return resolved;
+  }
+
   const initial = [trace("Leer entradas", "Q’uñi recibió exactamente dos propiedades intensivas.", [{ label: first.key, value: `${first.value} ${propertyUnits[first.key]}` }, { label: second.key, value: `${second.value} ${propertyUnits[second.key]}` }])];
   if (first.key === second.key) return invalid("Selecciona dos propiedades diferentes.", initial);
   if (!Number.isFinite(first.value) || !Number.isFinite(second.value)) return invalid("Ingresa valores numéricos válidos.", initial);
