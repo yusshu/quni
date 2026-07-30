@@ -1,9 +1,13 @@
+# mac
+.DS_Store
+
 # deps
 node_modules
 .next
 
 # output
 out/
+outputs/
 docs/build/
 tmp/
 
