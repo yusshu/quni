@@ -12,6 +12,8 @@
     "package:ios": "node scripts/package-native.mjs ios",
     "package:android": "node scripts/package-native.mjs android",
     "package": "npm run build && npm run package:ios -- --skip-build && npm run package:android -- --skip-build",
+    "docs:build": "powershell -NoProfile -ExecutionPolicy Bypass -File docs/build.ps1",
+    "docs:clean": "powershell -NoProfile -ExecutionPolicy Bypass -File docs/build.ps1 -Clean",
     "test:if97": "tsx tests/if97.test.ts",
     "test:cengel": "tsx tests/cengel.test.ts",
     "test": "npm run test:if97 && npm run test:cengel"

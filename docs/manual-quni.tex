@@ -1,0 +1,680 @@
+\documentclass[11pt,a4paper,oneside]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-nodecimaldot]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.35cm,headheight=15pt]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,longtable,tabularx,array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{hyperref}
+
+\definecolor{QuniBlue}{HTML}{0B6E99}
+\definecolor{QuniDark}{HTML}{102A38}
+\definecolor{QuniLight}{HTML}{EAF5F9}
+\definecolor{QuniOrange}{HTML}{C65D21}
+\definecolor{CodeBackground}{HTML}{F5F7F8}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=QuniBlue,
+  urlcolor=QuniBlue,
+  citecolor=QuniOrange,
+  pdftitle={Q'u\~ni: manual de usuario y referencia t\'ecnica},
+  pdfauthor={Proyecto Q'u\~ni},
+  pdfsubject={Operaci\'on, termodin\'amica, arquitectura y validaci\'on de Q'u\~ni}
+}
+
+\setlist[itemize]{leftmargin=1.6em,itemsep=0.25em,topsep=0.35em}
+\setlist[enumerate]{leftmargin=1.8em,itemsep=0.3em,topsep=0.35em}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.55em}
+\renewcommand{\arraystretch}{1.18}
+
+\titleformat{\section}{\Large\bfseries\color{QuniDark}}{\thesection}{0.65em}{}
+\titleformat{\subsection}{\large\bfseries\color{QuniBlue}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{QuniDark}}{\thesubsubsection}{0.55em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{Q'u\~ni}
+\rhead{Manual de usuario y referencia t\'ecnica}
+\cfoot{\thepage}
+
+\lstdefinestyle{quni}{
+  backgroundcolor=\color{CodeBackground},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  rulecolor=\color{QuniLight},
+  showstringspaces=false,
+  columns=fullflexible,
+  keepspaces=true,
+  keywordstyle=\color{QuniBlue}\bfseries,
+  commentstyle=\color{gray},
+  stringstyle=\color{QuniOrange}
+}
+\lstdefinelanguage{JavaScript}{
+  keywords={break,case,catch,class,const,continue,debugger,default,delete,do,else,export,extends,false,finally,for,from,function,if,import,in,instanceof,let,new,null,of,return,static,super,switch,this,throw,true,try,typeof,undefined,var,void,while,with,yield,async,await},
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]",
+  morestring=[b]'
+}
+\lstset{style=quni}
+
+\newcommand{\app}{Q'u\~ni}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\concepto}[1]{%
+  \begin{center}
+  \fcolorbox{QuniBlue}{QuniLight}{\parbox{0.91\linewidth}{\textbf{Idea clave.} #1}}
+  \end{center}}
+\newcommand{\advertencia}[1]{%
+  \begin{center}
+  \fcolorbox{QuniOrange}{CodeBackground}{\parbox{0.91\linewidth}{\textbf{Nota de alcance.} #1}}
+  \end{center}}
+
+\begin{document}
+\pagenumbering{gobble}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2.3cm}
+  {\fontsize{38}{44}\selectfont\bfseries\color{QuniDark} Q'u\~ni\par}
+  \vspace{0.35cm}
+  {\Large Calculadora de propiedades termodin\'amicas del agua\par}
+  \vspace{1.1cm}
+  \rule{0.76\textwidth}{1.2pt}\par
+  \vspace{0.8cm}
+  {\LARGE\bfseries Manual de usuario y referencia t\'ecnica\par}
+  \vspace{0.45cm}
+  {\large Operaci\'on, fundamentos, arquitectura, validaci\'on y licencia\par}
+  \vfill
+  \begin{tabular}{rl}
+    \textbf{Versi\'on documentada:} & 0.1.0 \\
+    \textbf{Repositorio:} & \url{https://github.com/yusshu/quni} \\
+    \textbf{Licencia del programa:} & GNU AGPL-3.0-only \\
+    \textbf{Fecha:} & \today
+  \end{tabular}
+  \vfill
+  {\small Documento de operaci\'on y consulta t\'ecnica de la versi\'on 0.1.0.\par}
+\end{titlepage}
+
+\pagenumbering{roman}
+
+\begin{abstract}
+\app{} es una aplicaci\'on que determina el estado termodin\'amico del agua a partir de exactamente dos propiedades intensivas. Devuelve presi\'on, temperatura, volumen espec\'ifico, energ\'ia interna, entalp\'ia, entrop\'ia, fase y, cuando corresponde, calidad. El motor implementa la formulaci\'on industrial IAPWS-IF97; la interfaz se desarrolla con Next.js, React y TypeScript; la compilaci\'on de producci\'on genera archivos web est\'aticos; y Capacitor incorpora esos archivos en proyectos nativos para Android e iOS.
+
+Este manual explica tanto el razonamiento termodin\'amico como las decisiones de software. Tambi\'en separa cuidadosamente lo que el proyecto ya demuestra de aquello que no debe prometerse: emplear IF97 aporta una base industrial reconocida, pero no equivale por s\'i solo a una certificaci\'on de seguridad; Decimal.js protege conversiones decimales concretas, pero el motor no es decimal de extremo a extremo; y mostrar diez decimales no significa que los diez tengan exactitud f\'isica garantizada.
+\end{abstract}
+
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+\section{Introducci\'on}
+
+\subsection{Prop\'osito y alcance}
+
+Este manual proporciona las instrucciones necesarias para utilizar \app{} y una referencia t\'ecnica de su funcionamiento. Describe las entradas admitidas, el procedimiento de c\'alculo, la interpretaci\'on de resultados, los mensajes de validaci\'on y los l\'imites de uso. Tambi\'en documenta la base termodin\'amica, la arquitectura de software, las pruebas, la licencia y el proceso de compilaci\'on.
+
+El documento corresponde a la versi\'on 0.1.0. Su alcance es el agua ordinaria en las fases fluidas cubiertas por IAPWS-IF97. No sustituye normas de dise\~no, instrumentaci\'on calibrada, software certificado ni el criterio profesional requerido para decisiones de seguridad.
+
+\subsection{Descripci\'on general}
+
+\app{} es una calculadora del estado termodin\'amico del agua. A partir de dos propiedades intensivas independientes obtiene las propiedades restantes, identifica la fase y ubica el estado en diagramas termodin\'amicos. Cuando la presi\'on y la temperatura corresponden a saturaci\'on, solicita una tercera propiedad porque ese par no determina por s\'i solo la proporci\'on entre l\'iquido y vapor.
+
+El motor no depende de una tabla discreta: eval\'ua las ecuaciones de IAPWS-IF97, formulaci\'on recomendada por IAPWS para c\'alculos industriales de agua y vapor. La interfaz se desarrolla con Next.js, React y TypeScript, y se compila como HTML, CSS y JavaScript. Capacitor incorpora ese mismo paquete web en los proyectos de Android e iOS.
+
+El nombre del proyecto se asocia con \emph{calor} en quechua. Su objetivo pr\'actico es reducir tres fuentes comunes de error: escoger una regi\'on incorrecta en las tablas, interpolar manualmente y copiar propiedades con unidades incompatibles.
+
+\concepto{La propuesta de valor no es solamente ``dar un n\'umero''. Es recibir dos datos, decidir la regi\'on termodin\'amica, resolver el estado, explicar el proceso y representarlo visualmente.}
+
+\section{Qu\'e recibe y qu\'e entrega la aplicaci\'on}
+
+\subsection{Propiedades disponibles}
+
+La interfaz permite seleccionar dos propiedades diferentes entre las siguientes:
+
+\begin{longtable}{>{\bfseries}p{1.55cm}p{4.8cm}p{3.0cm}p{4.5cm}}
+\toprule
+S\'imbolo & Propiedad & Unidad de la app & Interpretaci\'on \\
+\midrule
+\endhead
+$P$ & Presi\'on & kPa & Fuerza normal por unidad de \`area. \\
+$T$ & Temperatura & $^\circ$C & Nivel t\'ermico; internamente se convierte a kelvin. \\
+$v$ & Volumen espec\'ifico & m$^3$/kg & Volumen por unidad de masa; $v=1/\rho$. \\
+$u$ & Energ\'ia interna espec\'ifica & kJ/kg & Energ\'ia microsc\'opica almacenada por unidad de masa. \\
+$h$ & Entalp\'ia espec\'ifica & kJ/kg & $h=u+Pv$ con unidades coherentes. \\
+$s$ & Entrop\'ia espec\'ifica & kJ/(kg$\cdot$K) & Propiedad asociada a la dispersi\'on de energ\'ia y a la segunda ley. \\
+$x$ & Calidad & fracci\'on & Fracci\'on m\'asica de vapor en una mezcla saturada; $0\le x\le1$. \\
+\bottomrule
+\end{longtable}
+
+Con una combinaci\'on resoluble, el resultado contiene todas las propiedades anteriores, la fase, advertencias, la regi\'on IF97 y una traza de pasos. La calidad se muestra como ``No aplica'' fuera de la campana de saturaci\'on.
+
+\subsection{Por qu\'e bastan dos propiedades}
+
+Para una sustancia pura simple compresible, dos propiedades intensivas \emph{independientes} fijan el estado. La palabra independiente es esencial. Sobre la l\'inea de saturaci\'on, $P$ y $T$ est\'an ligados por $P_{\mathrm{sat}}(T)$; conocer ambos no indica cu\'anto l\'iquido y cu\'anto vapor existe. En ese caso se necesita calidad u otra propiedad como $v$, $u$, $h$ o $s$.
+
+Ejemplos:
+
+\begin{itemize}
+  \item $P$ y $T$ fuera de saturaci\'on permiten elegir directamente una regi\'on monof\'asica.
+  \item $P$ y $x$, o $T$ y $x$, definen un estado de saturaci\'on completo.
+  \item $P$ y $h$ pueden revelar primero una mezcla o requerir que se itere sobre $T$.
+  \item $h$ y $s$, sin $P$ ni $T$, requieren un solucionador de dos variables y son m\'as sensibles a la convergencia.
+\end{itemize}
+
+\subsection{Fases que reconoce}
+
+El tipo de estado del programa distingue l\'iquido comprimido, l\'iquido saturado, mezcla saturada, vapor saturado, vapor sobrecalentado, fluido supercr\'itico e indeterminado. ``Indeterminado'' no es una fase f\'isica: es la respuesta controlada cuando los datos son ambiguos, inv\'alidos, est\'an fuera del dominio o el solucionador no converge.
+
+\section{Por qu\'e no limitarse a tablas e interpolaci\'on}
+
+Las tablas termodin\'amicas son excelentes para aprender, contrastar resultados y hacer estimaciones. No son, sin embargo, la mejor representaci\'on interna para una calculadora general.
+
+\subsection{Limitaciones de una tabla digital}
+
+\begin{enumerate}
+  \item \textbf{Es discreta.} Solo almacena ciertos puntos de presi\'on o temperatura. Cualquier estado intermedio exige una regla de interpolaci\'on.
+  \item \textbf{La interpolaci\'on introduce otra aproximaci\'on.} La variaci\'on de una propiedad no siempre es lineal, sobre todo cerca del punto cr\'itico o de fronteras de regi\'on.
+  \item \textbf{Cada par de entradas exige una estrategia.} Una tabla organizada por $P$ y $T$ no resuelve directamente una consulta por $h$ y $s$.
+  \item \textbf{El usuario todav\'ia debe decidir la tabla correcta.} L\'iquido comprimido, saturaci\'on y vapor sobrecalentado tienen tablas diferentes; escoger mal la regi\'on produce un resultado plausible pero incorrecto.
+  \item \textbf{Escala mal.} Aumentar resoluci\'on aumenta almacenamiento, mantenimiento y riesgo de transcripci\'on, sin convertir la tabla en una funci\'on continua.
+  \item \textbf{Dificulta la trazabilidad matem\'atica.} Dos libros pueden redondear distinto o usar convenciones de referencia ligeramente diferentes.
+\end{enumerate}
+
+\subsection{Lo que aporta una formulaci\'on}
+
+IF97 representa las propiedades mediante ecuaciones fundamentales y coeficientes publicados. Con ellas se eval\'ua cualquier punto dentro del dominio, se calculan varias propiedades de una misma base termodin\'amicamente consistente y se automatiza la selecci\'on de regi\'on.
+
+Esto no elimina toda aproximaci\'on: IF97 sigue siendo una formulaci\'on num\'erica con rango y tolerancias definidos. La ventaja es que la aproximaci\'on est\'a especificada, es reproducible y ha sido dise\~nada para uso industrial, en lugar de depender de una interpolaci\'on improvisada.
+
+\concepto{Las tablas siguen siendo parte del proyecto, pero como instrumento de validaci\'on, no como motor principal. El repositorio conserva CSV derivados de la novena edici\'on de \emph{Thermodynamics: An Engineering Approach} para contrastes acad\'emicos \cite{cengel9}.}
+
+\section{IAPWS-IF97: base termodin\'amica}
+
+\subsection{Qu\'e es y por qu\'e se eligi\'o}
+
+IAPWS es la \emph{International Association for the Properties of Water and Steam}. Su formulaci\'on industrial de 1997, revisada posteriormente, se recomienda para calcular propiedades termodin\'amicas del agua ordinaria en sus fases fluidas, incluido el equilibrio l\'iquido--vapor. Fue dise\~nada como una aproximaci\'on r\'apida a la formulaci\'on cient\'ifica IAPWS-95 y divide el dominio en regiones con ecuaciones fundamentales diferentes \cite{iapws-if97}.
+
+Como criterio de dise\~no, la elecci\'on aporta:
+
+\begin{itemize}
+  \item una autoridad t\'ecnica identificable y una especificaci\'on p\'ublica;
+  \item coeficientes y valores de verificaci\'on reproducibles;
+  \item cobertura de l\'iquido, vapor, saturaci\'on, zona densa cercana al cr\'itico y alta temperatura;
+  \item consistencia entre propiedades derivadas de la misma ecuaci\'on fundamental;
+  \item rendimiento apropiado para c\'alculo interactivo.
+\end{itemize}
+
+El rango general que controla el c\'odigo es de 273.15 K a 1073.15 K y hasta 100 MPa; la regi\'on de alta temperatura se extiende hasta 2273.15 K y 50 MPa, de acuerdo con la revisi\'on de IF97 \cite{iapws-if97}. La aplicaci\'on recibe presi\'on en kPa y temperatura en grados Celsius, por lo que normaliza a MPa y kelvin antes de evaluar las ecuaciones.
+
+\advertencia{Decir ``basada en una formulaci\'on recomendada para uso industrial'' es correcto. Decir ``aplicaci\'on certificada'' o ``sin posibilidad de error'' no lo es: el repositorio no contiene una certificaci\'on de producto, y la seguridad final tambi\'en depende de pruebas, integraci\'on, entradas, redondeo y uso responsable.}
+
+\subsection{Las cinco regiones}
+
+\begin{longtable}{p{1.45cm}p{4.1cm}p{8.3cm}}
+\toprule
+Regi\'on & Zona principal & Tratamiento en \app{} \\
+\midrule
+\endhead
+1 & L\'iquido comprimido o subenfriado & Ecuaci\'on fundamental en energ\'ia libre de Gibbs; se selecciona, a baja temperatura, cuando $P>P_{\mathrm{sat}}(T)$. \\
+2 & Vapor sobrecalentado & Ecuaci\'on de Gibbs con parte ideal y residual; se selecciona bajo la frontera de saturaci\'on o bajo la frontera 2--3. \\
+3 & Fluido denso y entorno cr\'itico & Ecuaci\'on de Helmholtz en densidad y temperatura. Si la entrada es $P,T$, el programa resuelve num\'ericamente la densidad. \\
+4 & Saturaci\'on l\'iquido--vapor & Ecuaciones directas $P_{\mathrm{sat}}(T)$ y $T_{\mathrm{sat}}(P)$; combina extremos saturados mediante calidad. \\
+5 & Vapor a alta temperatura & Ecuaci\'on de Gibbs para $1073.15<T\le2273.15$ K y hasta 50 MPa. \\
+\bottomrule
+\end{longtable}
+
+La implementaci\'on no modela hielo ni otras fases s\'olidas. Tampoco expone una rama especial para vapor metaestable. Estos l\'imites deben mencionarse si se pregunta por ``todo el agua'': el alcance real son las fases fluidas cubiertas por el c\'odigo IF97.
+
+\subsection{De la ecuaci\'on fundamental a las propiedades}
+
+En las regiones 1, 2 y 5 se trabaja con una energ\'ia de Gibbs adimensional $\gamma(\pi,\tau)$, donde $\pi$ y $\tau$ son presi\'on y temperatura reducidas. Sus derivadas producen propiedades coherentes. De forma representativa:
+
+\begin{align}
+v &= \frac{RT}{P}\,\pi\gamma_{\pi}, &
+h &= RT\,\tau\gamma_{\tau}, \\
+u &= RT\left(\tau\gamma_{\tau}-\pi\gamma_{\pi}\right), &
+s &= R\left(\tau\gamma_{\tau}-\gamma\right).
+\end{align}
+
+El c\'odigo implementa las sumas de coeficientes y sus derivadas. La regi\'on 2 separa contribuci\'on ideal y residual; la regi\'on 5 sigue una estructura semejante para alta temperatura.
+
+La regi\'on 3 usa una energ\'ia de Helmholtz adimensional $\phi(\delta,\tau)$ con densidad reducida $\delta=\rho/322$ y temperatura reducida $\tau=647.096/T$. Entre las relaciones evaluadas est\'an:
+
+\begin{align}
+P &= \rho RT\,\delta\phi_{\delta}, &
+u &= RT\,\tau\phi_{\tau}, \\
+h &= RT\left(\tau\phi_{\tau}+\delta\phi_{\delta}\right), &
+s &= R\left(\tau\phi_{\tau}-\phi\right).
+\end{align}
+
+Los factores de conversi\'on necesarios se aplican porque $R=0.461526$ se usa en kJ/(kg$\cdot$K), la app recibe kPa y IF97 organiza varias ecuaciones con MPa.
+
+\subsection{Saturaci\'on y calidad}
+
+La regi\'on 4 permite convertir entre presi\'on y temperatura de saturaci\'on. Una vez obtenidos los extremos de l\'iquido saturado ($f$) y vapor saturado ($g$), cualquier propiedad espec\'ifica $y$ de una mezcla se calcula como
+
+\begin{equation}
+  y = y_f + x\left(y_g-y_f\right), \qquad 0\le x\le1.
+\end{equation}
+
+El programa aplica esta relaci\'on a $v$, $u$, $h$ y $s$. Si $x=0$, clasifica l\'iquido saturado; si $x=1$, vapor saturado; y si $0<x<1$, mezcla saturada. Si se conoce una propiedad de mezcla en vez de $x$, despeja
+
+\begin{equation}
+  x=\frac{y-y_f}{y_g-y_f}.
+\end{equation}
+
+En la parte de saturaci\'on por encima de 623.15 K, ambos extremos requieren soluciones de la regi\'on 3. El programa distingue las ra\'ices de densidad l\'iquida y de vapor y trata expl\'icitamente el punto cr\'itico, $T_c=647.096$ K y $P_c=22.064$ MPa.
+
+\section{C\'omo decide y resuelve un estado}
+
+\subsection{Flujo general}
+
+El algoritmo de alto nivel puede explicarse as\'i:
+
+\begin{center}
+\begin{tabularx}{0.96\linewidth}{>{\centering\arraybackslash}X c >{\centering\arraybackslash}X c >{\centering\arraybackslash}X}
+Dos entradas & $\longrightarrow$ & validar y normalizar & $\longrightarrow$ & detectar caso \\
+\addlinespace
+$\downarrow$ & & & & $\downarrow$ \\
+resultado completo & $\longleftarrow$ & calcular y clasificar & $\longleftarrow$ & evaluar o iterar
+\end{tabularx}
+\end{center}
+
+La funci\'on p\'ublica \code{calculateState} rechaza propiedades duplicadas, valores no num\'ericos, entradas negativas en esta versi\'on y calidad fuera de $[0,1]$. Luego sigue una ruta seg\'un el par recibido.
+
+\subsection{Rutas seg\'un las entradas}
+
+\begin{longtable}{p{3.0cm}p{10.9cm}}
+\toprule
+Par de entrada & Estrategia \\
+\midrule
+\endhead
+$P,T$ & Conversi\'on de unidades, comprobaci\'on de dominio y selecci\'on directa de regi\'on. Si el punto cae sobre saturaci\'on, se declara ambiguo porque falta una propiedad independiente. \\
+$P,x$ o $T,x$ & C\'alculo de la l\'inea de saturaci\'on, extremos $f/g$ y relaci\'on de mezcla. \\
+$P$ o $T$ con $v,u,h,s$ & Primero se calcula la calidad candidata. Si queda entre 0 y 1, es mezcla; de lo contrario se itera la variable desconocida hasta reproducir la propiedad objetivo. \\
+Dos entre $v,u,h,s$ & M\'etodo de Newton en $P,T$ con derivadas aproximadas por diferencias finitas, l\'imites de paso y m\'aximo de iteraciones. \\
+$x$ sin $P$ ni $T$ & Entrada insuficiente: la calidad necesita identificar una l\'inea de saturaci\'on. \\
+\bottomrule
+\end{longtable}
+
+\subsection{La inversi\'on especial de la regi\'on 3}
+
+La ecuaci\'on fundamental de la regi\'on 3 est\'a expresada en $\rho,T$, pero el usuario suele introducir $P,T$. Por eso el motor busca una densidad que satisfaga
+
+\begin{equation}
+  f(\rho)=P_{\mathrm{IF97}}(\rho,T)-P_{\mathrm{objetivo}}=0.
+\end{equation}
+
+El c\'odigo explora densidades entre 0.1 y 1200 kg/m$^3$ en una malla logar\'itmica, detecta cambios de signo y refina cada ra\'iz por bisecci\'on. Cuando aparecen varias ra\'ices, utiliza la presi\'on de saturaci\'on para escoger la rama f\'isicamente compatible. Este detalle explica por qu\'e la regi\'on cercana al cr\'itico es computacionalmente m\'as compleja que las regiones 1, 2 y 5.
+
+\subsection{Trazabilidad visible}
+
+Cada c\'alculo construye una lista de pasos con t\'itulo, resumen, nivel y detalles. La pantalla permite desplegar:
+
+\begin{itemize}
+  \item entradas recibidas y unidades normalizadas;
+  \item comprobaci\'on de saturaci\'on o de la frontera 2--3;
+  \item regi\'on seleccionada;
+  \item muestras y residuos de una iteraci\'on;
+  \item relaci\'on de mezcla;
+  \item mensaje de convergencia o causa de indeterminaci\'on.
+\end{itemize}
+
+Esta traza es pedag\'ogica y facilita depurar. No es una demostraci\'on formal de exactitud, pero evita que la calculadora se comporte como una ``caja negra''.
+
+\section{Precisi\'on num\'erica: IEEE 754 y Decimal.js}
+
+\subsection{Por qu\'e aparecen errores decimales}
+
+JavaScript representa el tipo \code{Number} como punto flotante binario de doble precisi\'on IEEE 754 \cite{mdn-number,ieee754}. Muchos lenguajes de programaci\'on usan el mismo formato o uno equivalente para sus tipos de punto flotante m\'as comunes. No significa que ``las computadoras calculen mal'': significa que un conjunto finito de bits solo puede representar exactamente ciertos n\'umeros.
+
+Por ejemplo, $0.1$ y $0.2$ tienen expansiones infinitas en base 2. Al almacenarlos se eligen valores binarios cercanos, por lo que en JavaScript se observa:
+
+\begin{lstlisting}[language=JavaScript]
+0.1 + 0.2 === 0.3            // false
+0.1 + 0.2                    // 0.30000000000000004
+\end{lstlisting}
+
+En ingenier\'ia, una peque\~na diferencia aislada suele ser irrelevante, pero conversiones repetidas, restas de valores cercanos, criterios de frontera e iteraciones pueden amplificar o hacer visible el efecto.
+
+\subsection{Qu\'e hace Decimal.js en este proyecto}
+
+Decimal.js ofrece un tipo decimal de precisi\'on configurable para JavaScript \cite{decimaljs}. \app{} lo usa en cuatro conversiones de frontera:
+
+\begin{lstlisting}[language=JavaScript]
+Celsius  -> kelvin:  T + 273.15
+kelvin   -> Celsius: T - 273.15
+kPa      -> MPa:     P / 1000
+MPa      -> kPa:     P * 1000
+\end{lstlisting}
+
+Estas operaciones se realizan primero con \code{Decimal} para que constantes decimales como 273.15 y 1000 se manipulen de forma decimal controlada. Es una decisi\'on defensiva en los puntos donde la interfaz cambia de sistema de unidades.
+
+\subsection{Alcance real de la precisi\'on decimal}
+
+Despu\'es de cada conversi\'on, el c\'odigo llama a \code{toNumber()}. Las sumas IF97, potencias, logaritmos, derivadas y solucionadores utilizan \code{number}, \code{Math.pow}, \code{Math.log} y otras operaciones binarias. Por tanto:
+
+\begin{itemize}
+  \item Decimal.js \textbf{s\'i} reduce artefactos en las conversiones indicadas;
+  \item Decimal.js \textbf{no} convierte al motor actual en aritm\'etica decimal arbitraria de extremo a extremo;
+  \item la precisi\'on principal se apoya en la doble precisi\'on, las ecuaciones IF97, tolerancias y pruebas;
+  \item migrar todo a decimal requerir\'ia reescribir tambi\'en potencias, logaritmos, derivadas y solvers, y medir el costo de rendimiento.
+\end{itemize}
+
+\advertencia{La interfaz puede desplegar hasta diez cifras decimales al expandir una propiedad. Esa es una opci\'on de formato, no una garant\'ia de diez decimales correctos. La exactitud significativa depende de IF97, del condicionamiento del estado, del algoritmo inverso y de las tolerancias de validaci\'on.}
+
+\section{Arquitectura de software}
+
+\subsection{Una sola aplicaci\'on web como n\'ucleo}
+
+La idea de construcci\'on es \emph{web-first}. La interfaz que ve el usuario termina siendo HTML, CSS y JavaScript, igual que una p\'agina web moderna. Sin embargo, esos archivos finales no se mantienen a mano: se escriben componentes React en TypeScript y estilos CSS; Next.js los transforma, optimiza y divide para producci\'on.
+
+\begin{center}
+\begin{tabularx}{0.96\linewidth}{>{\bfseries}p{3.25cm} X}
+\toprule
+Capa & Responsabilidad \\
+\midrule
+React + TypeScript & Componentes, estado de la interfaz, eventos, tipado y composici\'on de resultados. \\
+Next.js App Router & Estructura de aplicaci\'on, metadatos, compilaci\'on, optimizaci\'on y exportaci\'on est\'atica. \\
+CSS & Dise\~no adaptable, temas claro/oscuro, transiciones, tarjetas, tablas y gr\'aficas. \\
+Motor \code{steam.ts} & IF97, saturaci\'on, solvers, clasificaci\'on, formato y traza. \\
+SVG generado por React & Diagramas termodin\'amicos interactivos sin biblioteca externa de gr\'aficas. \\
+Capacitor & Contenedor nativo y sincronizaci\'on del paquete web con Android e iOS. \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+La p\'agina principal lleva la directiva \code{"use client"}; el c\'alculo ocurre en el dispositivo del usuario. En el estado actual no hay API remota, servidor de c\'alculo, base de datos, cuentas ni almacenamiento de mediciones. Una vez cargados los archivos, el n\'ucleo no necesita enviar las propiedades introducidas a un servidor.
+
+\subsection{Flujo desde el c\'odigo hasta cada plataforma}
+
+\begin{center}
+\begin{tabularx}{0.98\linewidth}{>{\centering\arraybackslash}X c >{\centering\arraybackslash}X c >{\centering\arraybackslash}X}
+TSX + CSS + TypeScript & $\longrightarrow$ & \code{next build} & $\longrightarrow$ & \code{out/}: HTML, CSS, JS \\
+&&&& $\downarrow$ \code{cap sync} \\
+&&& \multicolumn{2}{c}{Android WebView \qquad iOS WKWebView}
+\end{tabularx}
+\end{center}
+
+El archivo \code{next.config.ts} establece \code{output: "export"}. De acuerdo con Next.js, \code{next build} genera en \code{out/} un paquete est\'atico servible como HTML, CSS y JavaScript \cite{next-static-export}. El proyecto tambi\'en activa barras finales en rutas e im\'agenes no optimizadas por servidor, decisiones compatibles con una exportaci\'on sin runtime de Next.js.
+
+\code{capacitor.config.ts} define:
+
+\begin{itemize}
+  \item identificador: \code{team.unnamed.quni};
+  \item nombre: \code{Quni};
+  \item directorio web: \code{out}.
+\end{itemize}
+
+Capacitor no ``traduce React a Kotlin y Swift''. Crea proyectos nativos que alojan el paquete web en una vista web y ofrecen un puente para API nativas cuando se necesitan. Su comando \code{sync} copia el paquete construido y actualiza dependencias nativas \cite{capacitor-workflow}. En este proyecto, el script \code{package-native.mjs} ejecuta la compilaci\'on web y luego sincroniza la plataforma elegida.
+
+\concepto{No se mantienen tres interfaces. Se mantiene una aplicaci\'on web compilada una vez; Capacitor la integra en dos proyectos nativos. Android e iOS siguen necesitando sus herramientas de firma, compilaci\'on y publicaci\'on.}
+
+\subsection{Mapa del repositorio}
+
+\begin{longtable}{p{4.25cm}p{9.65cm}}
+\toprule
+Ruta & Funci\'on \\
+\midrule
+\endhead
+\code{app/page.tsx} & Pantalla de entrada, pantalla de resultados, controles, tabla de propiedades y panel del proceso. \\
+\path{app/ThermodynamicChart.tsx} & Diagramas T--v, P--h, T--s y P--v; escalas, zoom, puntero, leyenda y accesibilidad SVG. \\
+\code{app/globals.css} & Variables visuales, tema claro/oscuro, dise\~no adaptable y estilos de componentes. \\
+\code{app/layout.tsx} & Metadatos, idioma espa\~nol y configuraci\'on global de la p\'agina. \\
+\code{lib/steam.ts} & Tipos, coeficientes IF97, ecuaciones de regiones, saturaci\'on, solvers, trazas y tabla generada para diagramas. \\
+\code{next.config.ts} & Exportaci\'on est\'atica a \code{out/}. \\
+\code{capacitor.config.ts} & Identidad nativa y directorio del paquete web. \\
+\path{scripts/package-native.mjs} & Automatiza \code{next build} y \code{cap sync}. \\
+\code{android/}, \code{ios/} & Proyectos anfitriones nativos administrados por Capacitor. \\
+\code{tests/if97.test.ts} & Verificaci\'on num\'erica y de comportamiento del motor. \\
+\code{tests/cengel-tables/} & Tablas acad\'emicas CSV reservadas para comparaci\'on. \\
+\code{docs/} & Este manual y su sistema reproducible de compilaci\'on LaTeX. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Dependencias principales de la versi\'on documentada}
+
+Las versiones resueltas por el archivo de bloqueo en el momento de redactar este manual incluyen Next.js 16.2.12, React 19.2.8, Capacitor 8.4.2, Decimal.js 10.6.0 y TypeScript 6.0.3. \code{lucide-react} aporta los iconos. El archivo \code{package-lock.json} hace reproducible la selecci\'on exacta cuando se instala con \code{npm ci}.
+
+\section{Manual de uso}
+
+\subsection{Requisitos de acceso}
+
+La versi\'on web funciona en un navegador moderno con JavaScript habilitado. Las versiones m\'oviles ejecutan la misma interfaz dentro del contenedor de Capacitor. El c\'alculo se realiza localmente: no se requiere una cuenta, una base de datos ni una conexi\'on permanente despu\'es de cargar la aplicaci\'on.
+
+\subsection{Inicio r\'apido}
+
+\begin{enumerate}
+  \item Abra \app{} y localice la tarjeta \emph{Propiedades de entrada}.
+  \item Seleccione dos propiedades diferentes. La unidad esperada aparece junto a cada nombre.
+  \item Escriba los valores con punto decimal y compruebe que correspondan a las unidades indicadas.
+  \item Pulse \emph{Calcular estado}.
+  \item Si aparece una solicitud de tercera propiedad, elija $x$, $v$, $u$, $h$ o $s$, introduzca su valor y pulse \emph{Calcular con tercera propiedad}.
+  \item Revise primero las advertencias, despu\'es la fase y la calidad, y finalmente las propiedades calculadas.
+  \item Utilice el diagrama y el panel \emph{Proceso de c\'alculo} para comprobar la ubicaci\'on y la ruta seguida por el motor.
+\end{enumerate}
+
+Los valores iniciales, $P=101.325$ kPa y $x=0.85$, forman un caso inmediato de mezcla saturada a presi\'on atmosf\'erica aproximada. El selector de tema cambia entre apariencia clara y oscura sin alterar el c\'alculo.
+
+\subsection{Selecci\'on correcta de entradas}
+
+Las dos propiedades deben ser intensivas, distintas y f\'isicamente compatibles. Se recomiendan estas reglas:
+
+\begin{itemize}
+  \item use $P,T$ para estados monof\'asicos claramente alejados de saturaci\'on;
+  \item use $P,x$ o $T,x$ para una mezcla saturada conocida;
+  \item introduzca la calidad como fracci\'on entre 0 y 1, no como porcentaje;
+  \item para consultas inversas, incluir $P$ o $T$ suele proporcionar una convergencia m\'as robusta;
+  \item verifique siempre las unidades: kPa, $^\circ$C, m$^3$/kg, kJ/kg y kJ/(kg$\cdot$K).
+\end{itemize}
+
+La combinaci\'on $P,T$ requiere un tratamiento especial si ambos valores ubican el estado sobre la l\'inea de saturaci\'on. En ese punto no existe una sola calidad posible. La interfaz conserva $P$ y $T$ y habilita una tercera entrada para calcular $x$ directamente o deducirlo a partir de $v$, $u$, $h$ o $s$.
+
+\subsection{Interpretaci\'on de resultados}
+
+El resultado se organiza en el siguiente orden:
+
+\begin{enumerate}
+  \item \textbf{Avisos.} Indican ambigüedad, entradas fuera de dominio o el uso de un solucionador num\'erico.
+  \item \textbf{Fase y calidad.} La calidad solo tiene significado dentro de la regi\'on bif\'asica; fuera de ella aparece \emph{No aplica}.
+  \item \textbf{Propiedades.} Se muestran $P$, $T$, $v$, $u$, $h$, $s$ y $x$ con sus unidades.
+  \item \textbf{Diagrama.} El punto calculado se superpone a la campana de saturaci\'on.
+  \item \textbf{Proceso de c\'alculo.} Expone normalizaci\'on, selecci\'on de regi\'on, iteraciones y convergencia.
+\end{enumerate}
+
+Cada fila num\'erica puede expandirse para mostrar hasta diez posiciones decimales. Esa expansi\'on facilita la inspecci\'on num\'erica, pero no aumenta la exactitud f\'isica del resultado. Un estado marcado como \emph{indeterminado} no debe interpretarse ni reutilizarse como un resultado v\'alido.
+
+\subsection{Casos de uso guiados}
+
+\begin{longtable}{p{3.3cm}p{4.4cm}p{6.5cm}}
+\toprule
+Objetivo & Entradas & Comprobaci\'on esperada \\
+\midrule
+\endhead
+Mezcla saturada & $P=101.325$ kPa; $x=0.85$ & Fase de mezcla, calidad 0.85 y punto dentro de la campana. \\
+Vapor sobrecalentado & $P=500$ kPa; $T=300\,^\circ$C & Estado monof\'asico, calidad no aplicable y punto del lado del vapor. \\
+L\'iquido comprimido & $P=3000$ kPa; $T=50\,^\circ$C & Estado l\'iquido fuera de la campana y calidad no aplicable. \\
+Saturaci\'on ambigua & $P=101.325$ kPa; $T$ cercano a $99.97\,^\circ$C & Solicitud de una tercera propiedad; al ingresar $x=0.50$, se obtiene una mezcla definida. \\
+\bottomrule
+\end{longtable}
+
+\subsection{Diagramas}
+
+El componente gr\'afico ofrece T--v, P--h, T--s y P--v. Genera 70 puntos a lo largo de saturaci\'on, calcula las ramas de l\'iquido y vapor, rellena la campana y superpone el estado actual. Los ejes de presi\'on y volumen pueden usar escala logar\'itmica; entalp\'ia, entrop\'ia y temperatura se muestran linealmente seg\'un el diagrama.
+
+El usuario puede acercar hasta seis niveles, alejar, restablecer y usar la rueda. El puntero muestra el punto cercano. El SVG incluye t\'itulo, descripci\'on, etiquetas accesibles y estado enfocable con teclado.
+
+La curva se genera con una discretizaci\'on de saturaci\'on: es adecuada para orientaci\'on visual, no debe confundirse con un trazado metrol\'ogico de alta resoluci\'on.
+
+\subsection{Mensajes frecuentes y soluci\'on de problemas}
+
+\begin{longtable}{p{5.1cm}p{9.1cm}}
+\toprule
+Situaci\'on & Acci\'on recomendada \\
+\midrule
+\endhead
+Las dos propiedades son iguales & Seleccione dos propiedades distintas. \\
+La calidad est\'a fuera de rango & Introduzca $x$ como fracci\'on entre 0 y 1. \\
+$P,T$ solicitan una tercera propiedad & Introduzca $x$, $v$, $u$, $h$ o $s$ para definir la proporci\'on de fases. \\
+Estado fuera del rango IF97 & Revise unidades y utilice valores dentro del dominio descrito en la secci\'on de IAPWS-IF97. \\
+El solucionador no converge & Compruebe que los datos sean compatibles; pruebe una combinaci\'on que incluya $P$ o $T$. \\
+El resultado parece inesperado & Revise fase, unidades, advertencias y traza; contraste con un caso de referencia antes de reutilizarlo. \\
+\bottomrule
+\end{longtable}
+
+\section{Validaci\'on y calidad}
+
+\subsection{Pruebas existentes}
+
+El comando \code{npm test} ejecuta primero \code{tests/if97.test.ts} y despu\'es \code{tests/cengel.test.ts}. La primera suite comprueba:
+
+\begin{itemize}
+  \item valores de verificaci\'on de regiones 1, 2, 3 y 5;
+  \item presi\'on y temperatura de saturaci\'on de la regi\'on 4;
+  \item inversiones de densidad en regi\'on 3;
+  \item estados $P,x$ y $T,x$;
+  \item rechazo de propiedades duplicadas;
+  \item ambig\"uedad $P,T$ sobre saturaci\'on;
+  \item mezclas cerca de alta presi\'on y alta temperatura;
+  \item consistencia $u=h-Pv$ en los casos ensayados;
+  \item comportamiento en el punto cr\'itico.
+\end{itemize}
+
+Las tolerancias se ajustan al tipo de caso: algunas verificaciones relativas usan $2\times10^{-8}$; otras definen tolerancias absolutas para propiedades o referencias redondeadas.
+
+\subsection{Contraste automatizado con las tablas de \c{C}engel}
+
+El repositorio contiene cuatro archivos CSV provenientes de tablas de agua saturada, l\'iquido subenfriado y vapor sobrecalentado de la novena edici\'on del libro de \c{C}engel, Boles y Kano\u{g}lu. El archivo de procedencia declara que se conservaron exclusivamente para comparar con literatura existente.
+
+\code{tests/cengel.test.ts} lee esos CSV y ejecuta 150 c\'alculos: casos de saturaci\'on con diez pares de entrada y estados monof\'asicos con las quince combinaciones posibles entre $P,T,v,u,h,s$. La tolerancia toma el mayor valor entre un l\'imite absoluto por propiedad y 0.6\,\% del valor esperado, para considerar las cuatro a seis cifras significativas impresas en el libro y su propagaci\'on en c\'alculos inversos.
+
+En la \'ultima ejecuci\'on verificada al cerrar este documento, 122 de los 150 c\'alculos pasaron y 28 fallaron; por ello \code{npm test} termin\'o con c\'odigo de error aunque la suite de valores directos IF97 s\'i pas\'o. Las fallas se concentraron en inversiones como $T+u$, $T+h$, algunos pares sin $P$ ni $T$ y estados de l\'iquido comprimido. El hallazgo no invalida las ecuaciones directas verificadas: muestra que los solucionadores inversos generales todav\'ia no cubren de forma robusta todas las combinaciones que ofrece la interfaz. Como el motor y esta prueba est\'an en iteraci\'on activa, el conteo es espec\'ifico de la revisi\'on y debe confirmarse con \code{npm test}.
+
+\subsection{Qu\'e demuestra y qu\'e no demuestra una prueba}
+
+Una suite aprobada demuestra que los casos incluidos producen resultados dentro de sus tolerancias. No prueba todos los puntos continuos del dominio. Para elevar la confianza antes de un uso cr\'itico convendr\'ia a\~nadir:
+
+\begin{itemize}
+  \item barridos de fronteras 1--2, 2--3, saturaci\'on y punto cr\'itico;
+  \item comparaci\'on masiva con valores oficiales o una implementaci\'on independiente;
+  \item pruebas de cada par de propiedades, convergencia y entradas extremas;
+  \item pruebas de interfaz en navegador, Android e iOS;
+  \item an\'alisis de incertidumbre, redondeo y rendimiento;
+  \item revisi\'on independiente si la aplicaci\'on se usa para decisiones de seguridad.
+\end{itemize}
+
+La prioridad inmediata es corregir o acotar las inversiones fallidas y mantener esa suite como criterio de regresi\'on. Hasta completar esa mejora, deben preferirse pares ensayados que incluyan $P$ o $T$ y no debe asumirse que todas las combinaciones del selector son igualmente robustas.
+
+\section{Licencia: por qu\'e se eligi\'o AGPL}
+
+\subsection{Situaci\'on del repositorio}
+
+\code{package.json} declara \code{AGPL-3.0-only} y \code{license.txt} contiene la GNU Affero General Public License versi\'on 3. ``Only'' significa que el proyecto ofrece esa versi\'on concreta, no autom\'aticamente cualquier versi\'on posterior.
+
+AGPLv3 es una licencia de software libre con \emph{copyleft} fuerte. Permite usar, estudiar, modificar y redistribuir, pero una versi\'on cubierta que se distribuye debe mantener las libertades y proporcionar el c\'odigo fuente correspondiente bajo las condiciones de la licencia. Su secci\'on 13 tambi\'en exige que una versi\'on modificada que interact\'ua con usuarios remotamente por red les ofrezca acceso al fuente correspondiente \cite{agpl}.
+
+\subsection{La respuesta correcta sobre ``siempre abierto''}
+
+En t\'erminos pr\'acticos:
+
+\begin{quote}
+La AGPL protege la continuidad del car\'acter libre en las versiones cubiertas que se distribuyen y en versiones modificadas ofrecidas como servicio de red, porque obliga a ofrecer el c\'odigo fuente correspondiente en esas situaciones.
+\end{quote}
+
+No debe afirmarse que la licencia vuelve p\'ublica toda modificaci\'on privada. La propia AGPL permite hacer y ejecutar cambios que no se distribuyen, sujetos a sus t\'erminos. Tampoco una licencia ``garantiza'' por medios t\'ecnicos el cumplimiento: crea obligaciones jur\'idicas que pueden requerir aplicaci\'on.
+
+\subsection{Buenas pr\'acticas de cumplimiento}
+
+\begin{itemize}
+  \item conservar avisos de copyright, licencia y ausencia de garant\'ia;
+  \item entregar el texto de la AGPL con copias distribuidas;
+  \item ofrecer de forma visible el c\'odigo fuente correspondiente;
+  \item marcar modificaciones y fechas relevantes;
+  \item revisar las licencias de dependencias y activos por separado;
+  \item no confundir AGPL con una garant\'ia de exactitud termodin\'amica o soporte.
+\end{itemize}
+
+El archivo de licencia recomienda que una aplicaci\'on web incluya una forma visible de acceder al fuente. La interfaz actual no muestra un enlace de repositorio; a\~nadir uno junto con los avisos legales ser\'ia una mejora de cumplimiento antes de una publicaci\'on formal. Este manual explica el proyecto, pero no sustituye asesor\'ia jur\'idica.
+
+\section{Compilar, ejecutar y empaquetar}
+
+\subsection{Requisitos del proyecto}
+
+Se necesita Node.js compatible con las dependencias bloqueadas y npm. Para construir Android se requieren las herramientas de Android/Android Studio. Para compilar y firmar iOS se requiere normalmente macOS con Xcode. Capacitor sincroniza el contenido, pero no elimina los requisitos de cada ecosistema nativo.
+
+\subsection{Comandos principales}
+
+Desde la ra\'iz del repositorio:
+
+\begin{lstlisting}
+npm ci                  # instalar exactamente package-lock.json
+npm run dev             # servidor local de desarrollo
+npm test                # ejecutar las pruebas configuradas
+npm run build           # exportar la web estatica a out/
+npm run package:android # build web + cap sync android
+npm run package:ios     # build web + cap sync ios
+npm run package         # build una vez + sincronizar ambas
+\end{lstlisting}
+
+\code{npm run package} evita recompilar dos veces: ejecuta \code{next build} y llama al script nativo para iOS y Android con \code{--skip-build}.
+
+\subsection{Compilar este manual}
+
+El directorio \code{docs/} incluye un script PowerShell, un \code{Makefile} y configuraci\'on de \code{latexmk}. Se requiere una distribuci\'on TeX con \code{pdflatex} y BibTeX; \code{latexmk} es opcional:
+
+\begin{lstlisting}
+npm run docs:build
+
+# o, dentro de docs/ en Linux/macOS:
+make
+\end{lstlisting}
+
+El PDF queda en \path{docs/build/manual-quni.pdf}. Las instrucciones completas est\'an en \path{docs/README.md}.
+
+\section{Glosario r\'apido}
+
+\begin{longtable}{p{3.35cm}p{10.55cm}}
+\toprule
+T\'ermino & Significado \\
+\midrule
+\endhead
+API & Interfaz de programaci\'on. En el proyecto no existe una API remota para calcular; las funciones TypeScript forman una API interna. \\
+App Router & Sistema de rutas y composici\'on usado por Next.js en el directorio \code{app/}. \\
+Capacitor & Runtime multiplataforma que integra una aplicaci\'on web en proyectos nativos. \\
+Calidad $x$ & Fracci\'on de la masa total que est\'a en fase vapor en una mezcla saturada. \\
+Copyleft & Mecanismo de licencia que conserva libertades y condiciones en obras derivadas cubiertas. \\
+Exportaci\'on est\'atica & Generaci\'on anticipada de HTML, CSS y JavaScript sin requerir servidor Next.js en ejecuci\'on. \\
+IF97 & Formulaci\'on Industrial IAPWS 1997 para propiedades de agua y vapor. \\
+IEEE 754 & Est\'andar para formatos y operaciones de punto flotante binario y decimal. \\
+Minificaci\'on & Reducci\'on del tama\~no de c\'odigo de producci\'on eliminando elementos innecesarios para ejecuci\'on. \\
+Propiedad intensiva & Propiedad que no depende de la cantidad total de materia, como $T$, $P$ o una propiedad espec\'ifica. \\
+React & Biblioteca de componentes que construye la interfaz y actualiza su estado. \\
+Solver & Algoritmo que busca valores desconocidos hasta satisfacer ecuaciones o residuos. \\
+SVG & Formato vectorial usado para dibujar los diagramas de forma adaptable. \\
+WebView & Componente nativo que muestra y ejecuta contenido web dentro de una app. \\
+\bottomrule
+\end{longtable}
+
+\section{Conclusi\'on}
+
+\app{} combina una base termodin\'amica reconocida con una arquitectura multiplataforma pragm\'atica. La parte cient\'ifica no consiste en copiar tablas: implementa ecuaciones por regiones, derivadas, saturaci\'on y soluci\'on num\'erica. La parte de producto no consiste en tres aplicaciones independientes: una interfaz Next.js se exporta como web est\'atica y Capacitor la incorpora a Android e iOS. La trazabilidad, las validaciones y las pruebas existentes hacen que el resultado sea explicable.
+
+El uso responsable de \app{} exige interpretar cada resultado dentro de su fase, dominio y tolerancias. IF97 aporta la base industrial; Decimal.js protege conversiones espec\'ificas; IEEE 754 sigue presente en el motor; y AGPL conserva el acceso al c\'odigo fuente en los casos que regula. Las advertencias, la traza y las pruebas documentadas permiten reconocer tanto las capacidades como las limitaciones de la versi\'on actual.
+
+\clearpage
+\bibliographystyle{unsrt}
+\bibliography{references}
+
+\end{document}

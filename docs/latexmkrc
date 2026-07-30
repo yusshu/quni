@@ -1,0 +1,5 @@
+$pdf_mode = 1;
+$out_dir = 'build';
+$aux_dir = 'build';
+$pdflatex = 'pdflatex %O -interaction=nonstopmode -halt-on-error -file-line-error %S';
+$bibtex_use = 1;
