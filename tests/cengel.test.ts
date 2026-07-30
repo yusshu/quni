@@ -4,16 +4,11 @@ import { calculateState, type PropertyKey } from "../lib/steam";
 type StateProperty = Exclude<PropertyKey, "x">;
 type Reference = Record<StateProperty, number> & { x?: number };
 type Row = Record<string, string>;
-type SinglePhaseCase = { selector: Record<string, number>; exclude?: string[] };
 
 const tableDirectory = new URL("./cengel-tables/", import.meta.url);
 const properties: StateProperty[] = ["P", "T", "v", "u", "h", "s"];
-const outputPriority: StateProperty[] = ["h", "u", "s", "v", "T", "P"];
-const saturationPairs: Array<readonly [PropertyKey, PropertyKey]> = [
-  ["P", "x"], ["T", "x"],
-  ["P", "v"], ["P", "u"], ["P", "h"], ["P", "s"],
-  ["T", "v"], ["T", "u"], ["T", "h"], ["T", "s"],
-];
+const saturationProperties: PropertyKey[] = [...properties, "x"];
+const saturationPairs = pairs(saturationProperties);
 const failures: string[] = [];
 let calculations = 0;
 let assertions = 0;
@@ -52,26 +47,12 @@ function value(row: Row, column: string) {
   return result;
 }
 
-function findRow(filename: string, rows: Row[], selector: Record<string, number>) {
-  const matches = rows.filter((row) =>
-    Object.entries(selector).every(([column, expected]) => value(row, column) === expected),
-  );
-  if (matches.length !== 1) {
-    throw new Error(`${filename}: expected one row matching ${JSON.stringify(selector)}, got ${matches.length}`);
-  }
-  return matches[0];
-}
-
 function pairs<T>(items: readonly T[]) {
   const result: Array<readonly [T, T]> = [];
   for (let first = 0; first < items.length; first++) {
     for (let second = first + 1; second < items.length; second++) result.push([items[first], items[second]]);
   }
   return result;
-}
-
-function pairName(pair: readonly [PropertyKey, PropertyKey]) {
-  return pair.join("+");
 }
 
 function tolerance(property: StateProperty, expected: number) {
@@ -83,13 +64,14 @@ function tolerance(property: StateProperty, expected: number) {
   return Math.max(absolute[property], Math.abs(expected) * 0.006);
 }
 
-function assertClose(name: string, property: StateProperty, actual: number, expected: number) {
+function comparisonFailure(property: StateProperty, actual: number, expected: number) {
   assertions++;
   const error = Math.abs(actual - expected);
   const limit = tolerance(property, expected);
   if (!Number.isFinite(actual) || error > limit) {
-    throw new Error(`${name}: expected ${property}=${expected}, got ${actual} (error ${error}, limit ${limit})`);
+    return `${property}: expected ${expected}, got ${actual} (error ${error}, limit ${limit})`;
   }
+  return null;
 }
 
 function check(table: string, rowName: string, expected: Reference, pair: readonly [PropertyKey, PropertyKey]) {
@@ -102,9 +84,19 @@ function check(table: string, rowName: string, expected: Reference, pair: readon
     if (actual.phase === "undetermined") {
       throw new Error(`${name}: undetermined (${actual.warnings.join("; ")})`);
     }
-    const output = outputPriority.find((property) => !pair.includes(property));
-    if (!output) throw new Error(`${name}: no independent output property was available`);
-    assertClose(name, output, actual[output], expected[output]);
+    const mismatches: string[] = [];
+    for (const property of properties) {
+      if (pair.includes(property)) continue;
+      const mismatch = comparisonFailure(property, actual[property], expected[property]);
+      if (mismatch) mismatches.push(mismatch);
+    }
+    if (expected.x !== undefined && !pair.includes("x")) {
+      assertions++;
+      if (actual.x === null || Math.abs(actual.x - expected.x) > 0.006) {
+        mismatches.push(`x: expected ${expected.x}, got ${actual.x}`);
+      }
+    }
+    if (mismatches.length) throw new Error(`${name}: ${mismatches.join("; ")}`);
   } catch (error) {
     failures.push(error instanceof Error ? error.message : `${name}: ${String(error)}`);
   }
@@ -127,65 +119,34 @@ function saturated(row: Row, independent: "T" | "P", x: number): Reference {
   };
 }
 
-function testSinglePhase(filename: string, cases: SinglePhaseCase[]) {
+function testSinglePhase(filename: string) {
   const rows = readTable(filename);
-  for (const testCase of cases) {
-    const row = findRow(filename, rows, testCase.selector);
+  rows.forEach((row, index) => {
     const expected = singlePhase(row);
-    const name = `P=${value(row, "P")} MPa, T=${value(row, "T")} C`;
-    for (const pair of pairs(properties)) {
-      if (!testCase.exclude?.includes(pairName(pair))) check(filename, name, expected, pair);
-    }
-  }
+    const name = `row ${index + 3}, P=${value(row, "P")} MPa, T=${value(row, "T")} C`;
+    for (const pair of pairs(properties)) check(filename, name, expected, pair);
+  });
 }
 
-function testSaturation(
-  filename: string,
-  independent: "T" | "P",
-  cases: Array<{ selector: Record<string, number>; x: number }>,
-) {
+function testSaturation(filename: string, independent: "T" | "P") {
   const rows = readTable(filename);
-  for (const testCase of cases) {
-    const row = findRow(filename, rows, testCase.selector);
-    const expected = saturated(row, independent, testCase.x);
-    const name = `${independent}=${value(row, independent)}, x=${testCase.x}`;
-    for (const pair of saturationPairs) check(filename, name, expected, pair);
-  }
+  rows.forEach((row, index) => {
+    for (const x of [0, 1]) {
+      const expected = saturated(row, independent, x);
+      const name = `row ${index + 3}, ${independent}=${value(row, independent)}, x=${x}`;
+      for (const pair of saturationPairs) check(filename, name, expected, pair);
+    }
+  });
 }
 
-testSaturation("a-4--saturated-water-by-temperature.csv", "T", [
-  { selector: { T: 50 }, x: 0.2 },
-  { selector: { T: 150 }, x: 0.5 },
-  { selector: { T: 300 }, x: 0.8 },
-]);
-testSaturation("a-5--saturated-water-by-pressure.csv", "P", [
-  { selector: { P: 10 }, x: 0.2 },
-  { selector: { P: 500 }, x: 0.5 },
-  { selector: { P: 5000 }, x: 0.8 },
-]);
-
-// These exclusions are specific to the rounded values in the selected row.
-// They either describe more than one phase or do not converge in the current
-// inverse solver. Every other unordered pair is exercised below.
-testSinglePhase("a-6--superheated-steam-by-temperature-and-pressure.csv", [
-  { selector: { P: 0.1, T: 300 }, exclude: ["T+u", "T+h", "u+h"] },
-  { selector: { P: 3, T: 500 }, exclude: ["T+u", "T+h"] },
-  { selector: { P: 20, T: 700 }, exclude: ["T+u", "T+h", "v+s", "u+h"] },
-]);
-testSinglePhase("a-7--subcooled-liquid-water-by-temperature-and-pressure.csv", [
-  { selector: { P: 5, T: 40 }, exclude: ["T+u", "T+h", "u+h", "u+s"] },
-  { selector: { P: 20, T: 200 }, exclude: ["T+u", "T+h", "v+u", "v+h", "v+s", "u+h"] },
-  {
-    selector: { P: 50, T: 300 },
-    exclude: ["P+u", "P+h", "P+s", "T+h", "v+u", "v+h", "v+s", "u+h", "u+s"],
-  },
-]);
+testSaturation("a-4--saturated-water-by-temperature.csv", "T");
+testSaturation("a-5--saturated-water-by-pressure.csv", "P");
+testSinglePhase("a-6--superheated-steam-by-temperature-and-pressure.csv");
+testSinglePhase("a-7--subcooled-liquid-water-by-temperature-and-pressure.csv");
 
 if (failures.length) {
-  throw new Error(
-    `${failures.length}/${calculations} Cengel calculations failed:\n${failures
-      .map((failure) => `- ${failure}`)
-      .join("\n")}`,
-  );
+  console.error(`\n${failures.length}/${calculations} Cengel calculations failed:`);
+  for (const failure of failures) console.error(`- ${failure}`);
+  throw new Error(`${failures.length}/${calculations} Cengel calculations failed; see the list above`);
 }
 console.log(`Cengel table tests passed: ${calculations} calculations, ${assertions} comparisons`);
