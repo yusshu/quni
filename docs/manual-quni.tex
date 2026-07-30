@@ -13,7 +13,10 @@
 \usepackage{listings}
 \usepackage{fancyhdr}
 \usepackage{titlesec}
+\usepackage{graphicx}
 \usepackage{hyperref}
+
+\graphicspath{{../assets/}}
 
 \definecolor{QuniBlue}{HTML}{0B6E99}
 \definecolor{QuniDark}{HTML}{102A38}
@@ -43,7 +46,7 @@
 
 \pagestyle{fancy}
 \fancyhf{}
-\lhead{Q'u\~ni}
+\lhead{\raisebox{-0.1cm}{\includegraphics[height=0.43cm]{icon-dark.png}}\hspace{0.45em}Q'u\~ni}
 \rhead{Manual de usuario y referencia t\'ecnica}
 \cfoot{\thepage}
 
@@ -86,7 +89,9 @@
 
 \begin{titlepage}
   \centering
-  \vspace*{2.3cm}
+  \vspace*{1.25cm}
+  \includegraphics[width=2.9cm]{icon-dark.png}\par
+  \vspace{0.55cm}
   {\fontsize{38}{44}\selectfont\bfseries\color{QuniDark} Q'u\~ni\par}
   \vspace{0.35cm}
   {\Large Calculadora de propiedades termodin\'amicas del agua\par}
